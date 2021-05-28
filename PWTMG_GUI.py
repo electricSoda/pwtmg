@@ -1,6 +1,8 @@
 from tkinter import *
 from tkinter import font
 from tkinter import simpledialog
+from tkinter import messagebox
+import sys
 import cmd
 import pwtmg
 import socket
@@ -18,15 +20,27 @@ DISCONNECT_MSG = "/disconnect"
 def rient():
     global client, pyclient
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client.connect(address)
+    try:
+        client.connect(address)
+    except Exception as e:
+        messagebox.showinfo("Error", "Could not connect to main server, this probably means that the server is down. Please try again later.")
+
     pyclient = pwtmg.client(port, ip, address, HEADER, FORMAT, DISCONNECT_MSG, client)
+    pyclient.sendmsg("%%%%%" + name)
 
 def startReceiving():
     global c
     while True:
-        receiving = pyclient.receive()
-        if receiving:
-            c.printLine(str(receiving))
+        try:
+            receiving = pyclient.receive()
+            if receiving:
+                c.printLine(str(receiving))
+        except Exception as e:
+            messagebox.showinfo("Error",
+                                "Could not connect to main server, this probably means that the server is down. Please try again later.")
+            root.destroy()
+            sys.exit()
+
 
 
 def startClient():
@@ -66,15 +80,16 @@ vcmd = root.register(validate)
 def command(event):
     text = pinput.get()
     pin.delete(2, END)
-    if (text == '> exit'):
+    if text == '> exit' or text=='> /disconnect':
         pyclient.sendmsg(DISCONNECT_MSG)
         root.destroy()
         exit()
-
-    newtext = name + " " + text
-    sended = pyclient.sendmsg(newtext)
-    #c.printLine(sended)
-
+    elif text.startswith("> /"):
+        c.checkCommand(text[3:])
+        c.printLine(text)
+    else:
+        newtext = name + " " + text
+        sended = pyclient.sendmsg(newtext)
 
 pin = Entry(root)
 pin.config(background = 'black', foreground = 'white', validate="key", validatecommand=(vcmd, "%P"), textvariable = pinput, font = font.Font(family = 'Lucida Console', size = 15))

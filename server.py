@@ -13,11 +13,9 @@ DISCONNECT_MSG = "/disconnect"
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind(address)
 
-connectedclients = []
+connectedclients = {}
 
 def client(conn, addr):
-    print(f"[CLIENT] : -CONNECTION- : Address : {addr}" )
-
     connected = True
 
     while connected:
@@ -27,11 +25,17 @@ def client(conn, addr):
             data = conn.recv(data_length).decode(FORMAT)
             if data == DISCONNECT_MSG:
                 print(f'[CLIENT] : {addr} : DISCONNECTED')
-                del connectedclients[connectedclients.index(conn)]
+                for i in list(connectedclients):
+                    if connectedclients[i] == conn:
+                        del connectedclients[i]
                 connected = False
-            print(f"[CLIENT] : -DATA- : Address : {addr}" + " { Data : " + data + " }")
-            for i in range(0, len(connectedclients)):
-                connectedclients[i].send(data.encode(FORMAT))
+            elif "%%%%%" in data:
+                print(f"[CLIENT] : -CONNECTION- : Address : {addr} : Username: {data[5:]}")
+                connectedclients[data[5:]] = conn
+            else:
+                print(f"[CLIENT] : -DATA- : Address : {addr}" + " { Data : " + data + " }")
+                for i in connectedclients:
+                    connectedclients[i].send(data.encode(FORMAT))
 
     conn.close()
     return
@@ -45,7 +49,6 @@ def start():
 
     while True:
         conn, addr = server.accept()
-        connectedclients.append(conn)
         print(connectedclients)
         thread = threading.Thread(target = client, args=(conn, addr)) #create a thread on cpu to run client() simultaneously
         thread.start()

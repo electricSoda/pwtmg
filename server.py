@@ -32,6 +32,8 @@ def client(conn, addr):
             elif "%%%%%" in data:
                 print(f"[CLIENT] : -CONNECTION- : Address : {addr} : Username: {data[5:]}")
                 connectedclients[data[5:]] = conn
+            elif data == "*****PING":
+                conn.send("*****PONG".encode(FORMAT))
             else:
                 print(f"[CLIENT] : -DATA- : Address : {addr}" + " { Data : " + data + " }")
                 for i in connectedclients:

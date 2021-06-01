@@ -12,7 +12,5 @@ class commandLine():
     def checkCommand(self, text):
         if text == 'play':
             playsound('cykablyat.mp3')
-        elif text == 'ping':
-            print("")
 
 

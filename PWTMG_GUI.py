@@ -20,6 +20,9 @@ DISCONNECT_MSG = "/disconnect"
 
 #some variables
 pinged = False
+pyclient = None
+account = None
+ifaccount = None
 
 def rient():
     global client, pyclient
@@ -30,16 +33,20 @@ def rient():
         messagebox.showinfo("Error", "Could not connect to main server, this probably means that the server is down. Please try again later.")
 
     pyclient = pwtmg.client(port, ip, address, HEADER, FORMAT, DISCONNECT_MSG, client)
-    pyclient.sendmsg("%%%%%" + username)
 
 def startReceiving():
-    global c, pinged
+    global c, pinged, account, ifaccount
     while True:
         try:
             receiving = pyclient.receive()
             if receiving:
                 if receiving == "*****PONG":
                     pinged = True
+                elif "&&&&&" in receiving:
+                    account = receiving[5:]
+                    ifaccount = True
+                elif "None" == receiving:
+                    ifaccount = False
                 else:
                     c.printLine(str(receiving))
         except Exception as e:
@@ -60,11 +67,13 @@ def startClient():
 
     thread2 = threading.Thread(target=startReceiving)
     thread2.start()
+    print('Connected to server')
 
 #setup
 root = Tk()
 root.title('PWTMG')
-root.geometry("700x500")
+root.geometry("700x600")
+root.minsize(700, 600)
 root.iconbitmap('favicon.ico')
 root.config(bg='black')
 
@@ -72,10 +81,12 @@ username = None
 
 #ask for name
 def startLogin():
+    startClient()
 
     # databases
     usersdb = sqlite3.connect('users.db')
     c = usersdb.cursor()
+    pyclient.sendmsg("&&&&&STARTDB")
 
     # c.execute("""CREATE TABLE users (
     #             username text,
@@ -101,6 +112,7 @@ def startLogin():
     passwordE.pack()
 
     def check():
+        global account
         submit.config(text='Processing...', state=DISABLED)
         get1 = usernameE.get()
         get2 = passwordE.get()
@@ -109,22 +121,30 @@ def startLogin():
             status.config(text='Invalid credentials, please try again!', fg='red')
             submit.config(text='Submit', state=NORMAL)
         else:
-            c.execute(f"SELECT * FROM users WHERE username='{get1}'")
-            account = c.fetchone()
-            if not account:
+            pyclient.sendmsg(f"&&&&&F{get1}")
+            #c.execute(f"SELECT * FROM users WHERE username='{get1}'")
+            #account = c.fetchone()
+
+            while ifaccount == None:
+                continue
+
+            if ifaccount == False:
                 status.config(text='Invalid username, please try again!', fg='red')
                 submit.config(text='Submit', state=NORMAL)
             else:
-                if get2 == account[1]:
+                acc = account.split("&&&&&")
+                if get2 == acc[1]:
                     status.config(text='Success!', fg='green')
                     submit.config(text='Submit', state=NORMAL)
                     win.destroy()
                     global username
-                    username = account[0]
+                    username = acc[0]
                     # mainloop and client
-                    root.after(5, startClient)
+                    pyclient.sendmsg("%%%%%" + username)
                     root.deiconify()
+                    account = None
                     c.close()
+                    usersdb.close()
                 else:
                     status.config(text='Invalid password, please try again!', fg='red')
                     submit.config(text='Submit', state=NORMAL)
@@ -171,18 +191,25 @@ def startLogin():
                     status.config(text='')
                     status.pack_forget()
 
-                    c.execute(f"SELECT * FROM users WHERE username='{get1}'")
-                    account = c.fetchone()
+                    # c.execute(f"SELECT * FROM users WHERE username='{get1}'")
+                    # account = c.fetchone()
+                    pyclient.sendmsg(f"&&&&&F{get1}")
 
-                    if account:
+                    while ifaccount == None:
+                        continue
+
+                    if ifaccount == True:
                         submit.config(text='Sign Up', state = NORMAL)
                         status.config(text='User already exists.')
                         status.pack()
                     else:
-                        c.execute(f"INSERT INTO users VALUES ('{get1}', '{get2}')")
+                        print("Unique user passed.")
+                        #c.execute(f"INSERT INTO users VALUES ('{get1}', '{get2}')")
+                        pyclient.sendmsg(f"(^{get1}(^{get2}")
 
-                        usersdb.commit()
-                        usersdb.close()
+                        # usersdb.commit()
+                        # c.close()
+                        # usersdb.close()
                         win.destroy()
                         startLogin()
                         global username
@@ -209,9 +236,21 @@ def startLogin():
     win.mainloop()
 
 #commandline
-prompt = Listbox(root)
-prompt.config(bg='black', fg='white', font=font.Font(family = 'Lucida Console', size=13))
-prompt.pack(fill=BOTH, expand=True)
+panel = Frame(root)
+scrollBar = Scrollbar(panel, orient = VERTICAL)
+scrollBar2 = Scrollbar(panel, orient = HORIZONTAL)
+
+prompt = Listbox(panel, yscrollcommand = scrollBar.set)
+prompt.config(bg='black', fg='white', height = 30, font=font.Font(family = 'Lucida Console', size=13))
+
+#config scrollbar
+scrollBar.config(command = prompt.yview)
+scrollBar.pack(side=RIGHT, fill=Y)
+scrollBar2.config(command = prompt.xview)
+scrollBar2.pack(side = BOTTOM, fill=X)
+
+prompt.pack(side = LEFT, fill=BOTH, expand=True)
+panel.pack(fill=BOTH, expand=True)
 
 #command input
 pinput = StringVar()
@@ -242,7 +281,6 @@ def command(event):
             return
 
         c.checkCommand(text[3:])
-        c.printLine(text)
     else:
         newtext = username + " " + text
         sended = pyclient.sendmsg(newtext)
@@ -253,7 +291,7 @@ pin.config(insertbackground = 'white', insertofftime = 0, insertontime = 0, inse
 pin.focus_set()
 pin.bind('<Return>', command)
 pin.insert(0, '> ')
-pin.pack(fill=X)
+pin.pack(fill=X, side=BOTTOM)
 
 c = cmd.commandLine(root, prompt)
 
@@ -261,6 +299,10 @@ c = cmd.commandLine(root, prompt)
 c.printLine("Python Word Text Multiplayer Game")
 c.printLine("(c) Justin Ge. All rights reserved.")
 c.printLine(" ")
+c.printLine("Do /getstarted to get started!")
+c.printLine("If you need help with commands, do /help!")
+c.printLine(" ")
+c.printLine("-" * 10000)
 
 #window on close
 def on_closing():

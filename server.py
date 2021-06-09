@@ -1,6 +1,9 @@
 import socket
 import threading
 import time
+import sqlite3
+import atexit
+import sys
 
 #local tcp variables
 port = 3000
@@ -32,6 +35,34 @@ def client(conn, addr):
             elif "%%%%%" in data:
                 print(f"[CLIENT] : -CONNECTION- : Address : {addr} : Username: {data[5:]}")
                 connectedclients[data[5:]] = conn
+            elif "&&&&&" in data:
+                if data[5:] == "STARTDB":
+                    print('[SERVER] : REQUEST : Start DATABASE query')
+                else:
+                    # open database
+                    usersdb = sqlite3.connect('users.db')
+                    c = usersdb.cursor()
+                    c.execute(f"SELECT * FROM users WHERE username='{data[6:]}'")
+                    account = c.fetchone()
+                    if account:
+                        print(f'[DATABASE]: FETCHED {account}')
+                        rsg = "&&&&&" + account[0] + "&&&&&" + account[1]
+                        conn.send(rsg.encode(FORMAT))
+                        c.close()
+                        usersdb.close()
+                    elif account == None:
+                        print("[DATABASE]: CHECK : USER - " + data + " : Successfully does not exist")
+                        conn.send("None".encode(FORMAT))
+            elif "(^" in data:
+                usersdb = sqlite3.connect('users.db')
+                c = usersdb.cursor()
+                dat = data.split('(^')
+                print(dat)
+                print("[DATABASE]: NEW ACCOUNT " + dat[1] + ", " + dat[2])
+                c.execute(f"INSERT INTO users VALUES ('{dat[1]}', '{dat[2]}')")
+                usersdb.commit()
+                c.close()
+                usersdb.close()
             elif data == "*****PING":
                 conn.send("*****PONG".encode(FORMAT))
             else:
@@ -56,5 +87,16 @@ def start():
         thread.start()
         print("[SERVER] : -ACTIVE CONNECTIONS- : " + str(threading.activeCount()-1))
 
-print("[SERVER]: Starting up server...")
-start()
+#exit function
+def onexit():
+    try:
+        c.close()
+        usersdb.close()
+    except Exception as e:
+        print("[SERVER]: ERROR ON EXITING (NOT FATAL)")
+    sys.exit()
+
+if __name__ == '__main__':
+    atexit.register(onexit)
+    print("[SERVER]: Starting up server...")
+    start()
